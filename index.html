@@ -2,45 +2,67 @@
 <html>
   <head>
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
+    
     <script>
-      // This is the "Game Logic"
+      // LOGIC: Make objects breakable and respawn
       AFRAME.registerComponent('destructible', {
         init: function () {
           this.el.addEventListener('click', () => {
-            // 1. Create a "shatter" effect by spawning small cubes
-            for (let i = 0; i < 5; i++) {
-              let fragment = document.createElement('a-box');
-              fragment.setAttribute('width', '0.2');
-              fragment.setAttribute('height', '0.2');
-              fragment.setAttribute('depth', '0.2');
-              fragment.setAttribute('color', 'red');
-              fragment.setAttribute('position', this.el.getAttribute('position'));
-              // Give them a simple animation to "fly away"
-              fragment.setAttribute('animation', `property: position; to: ${Math.random()*2-1} ${Math.random()*2} ${Math.random()*-5}; dur: 500`);
-              this.el.sceneEl.appendChild(fragment);
-              
-              // Remove fragments after a second
-              setTimeout(() => fragment.remove(), 1000);
+            // Create "Explosion" fragments
+            for (let i = 0; i < 4; i++) {
+              let frag = document.createElement('a-box');
+              frag.setAttribute('width', '0.3'); frag.setAttribute('height', '0.3'); frag.setAttribute('depth', '0.3');
+              frag.setAttribute('color', this.el.getAttribute('color'));
+              frag.setAttribute('position', this.el.getAttribute('position'));
+              // Make them fly up and away
+              frag.setAttribute('animation', `property: position; to: ${Math.random()*4-2} 5 ${Math.random()*-4-2}; dur: 800; easing: easeOutQuad`);
+              this.el.sceneEl.appendChild(frag);
+              setTimeout(() => frag.remove(), 800);
             }
-            
-            // 2. Remove the original box
-            this.el.remove();
+
+            // Hide the original object
+            const originalPos = this.el.getAttribute('position');
+            this.el.setAttribute('visible', 'false');
+            this.el.setAttribute('class', 'not-target'); // Disable shooting it while hidden
+
+            // Respawn after 5 seconds
+            setTimeout(() => {
+              this.el.setAttribute('visible', 'true');
+              this.el.setAttribute('class', 'interactable');
+            }, 5000);
           });
         }
       });
     </script>
   </head>
   <body>
-    <a-scene background="color: #111" cursor="rayOrigin: mouse">
+    <a-scene renderer="antialias: true" cursor="rayOrigin: mouse">
       
-      <a-box id="target" destructible position="0 1.5 -3" color="red" animation="property: rotation; to: 0 360 0; loop: true; dur: 4000"></a-box>
+      <a-assets>
+        <a-mixin id="building" geometry="primitive: box" material="color: #555" destructible class="interactable"></a-mixin>
+      </a-assets>
 
-      <a-grid></a-grid>
+      <a-entity id="rig" movement-controls="fly: false; speed: 0.2">
+        <a-entity camera position="0 1.6 0" look-controls></a-entity>
+        
+        <a-entity laser-controls="hand: right" raycaster="objects: .interactable; far: 20">
+          <a-box position="0 -0.05 -0.15" rotation="-10 0 0" width="0.05" height="0.1" depth="0.2" color="#222">
+            <a-box position="0 0.07 -0.1" width="0.05" height="0.05" depth="0.3" color="#333"></a-box>
+          </a-box>
+        </a-entity>
 
-      <a-entity laser-controls="hand: right" raycaster="objects: [destructible]"></a-entity>
-      <a-entity laser-controls="hand: left" raycaster="objects: [destructible]"></a-entity>
+        <a-entity oculus-touch-controls="hand: left"></a-entity>
+      </a-entity>
 
-      <a-sky color="#222"></a-sky>
+      <a-sky color="#87CEEB"></a-sky>
+      <a-grid width="50" height="50" color="#444"></a-grid>
+
+      <a-entity mixin="building" position="-4 2 -8" scale="2 4 2" material="color: #778899"></a-entity>
+      <a-entity mixin="building" position="4 3 -10" scale="3 6 3" material="color: #696969"></a-entity>
+      <a-entity mixin="building" position="-6 1.5 -4" scale="1.5 3 1.5" material="color: #708090"></a-entity>
+      <a-entity mixin="building" position="7 2 -5" scale="2 4 2" material="color: #483D8B"></a-entity>
+
     </a-scene>
   </body>
 </html>
