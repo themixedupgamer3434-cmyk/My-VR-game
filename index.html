@@ -5,37 +5,44 @@
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
     
     <script>
-      // The "Explosion" logic
+      // 1. The Wanderer Logic (For the Meh guys)
+      AFRAME.registerComponent('wanderer', {
+        init: function () {
+          this.targetPos = new THREE.Vector3();
+          this.createNewTarget();
+        },
+        createNewTarget: function() {
+          // Picks a random spot within 10 meters
+          this.targetPos.set(Math.random()*20-10, 0, Math.random()*20-10);
+        },
+        tick: function (time, timeDelta) {
+          let currentPos = this.el.getAttribute('position');
+          if (this.targetPos.distanceTo(currentPos) < 0.5) {
+            this.createNewTarget();
+          } else {
+            this.el.object3D.lookAt(this.targetPos);
+            this.el.object3D.translateZ(0.03); // Speed of the little guys
+          }
+        }
+      });
+
+      // 2. Destructible Logic with Respawn
       AFRAME.registerComponent('destructible', {
         init: function () {
-          this.el.addEventListener('click', (evt) => {
-            console.log("Hit detected!"); // This helps you debug on your Mac
-            
-            // Create a temporary "shatter" effect
-            for (let i = 0; i < 3; i++) {
-              let frag = document.createElement('a-box');
-              frag.setAttribute('scale', '0.2 0.2 0.2');
-              frag.setAttribute('color', 'red');
-              frag.setAttribute('position', this.el.getAttribute('position'));
-              frag.setAttribute('animation', `property: position; to: ${Math.random()*2-1} 4 ${Math.random()*-2}; dur: 500`);
-              this.el.sceneEl.appendChild(frag);
-              setTimeout(() => frag.remove(), 500);
-            }
-
+          // Save the original position so we can bring it back
+          this.originalPos = this.el.getAttribute('position');
+          
+          this.el.addEventListener('click', () => {
             // Hide the building
             this.el.setAttribute('visible', 'false');
-            // Move it far away so the laser doesn't hit an invisible wall
-            this.el.setAttribute('position', {x: 0, y: -100, z: 0}); 
-
-            // Respawn after 5 seconds
+            this.el.setAttribute('position', {x: 0, y: -20, z: 0}); // Move it underground so you don't hit it
+            
+            // Bring it back after 4 seconds
             setTimeout(() => {
+              this.el.setAttribute('position', this.originalPos);
               this.el.setAttribute('visible', 'true');
-              this.el.setAttribute('position', this.el.originalPosition);
-            }, 5000);
+            }, 4000);
           });
-          
-          // Save the original position for respawning
-          this.el.originalPosition = this.el.getAttribute('position');
         }
       });
     </script>
@@ -43,15 +50,11 @@
   <body>
     <a-scene cursor="rayOrigin: mouse" raycaster="objects: .interactable">
       
-      <a-entity id="rig" movement-controls="speed: 0.15">
+      <a-entity id="rig" movement-controls="speed: 0.2">
         <a-entity camera position="0 1.6 0" look-controls></a-entity>
         
-        <a-entity oculus-touch-controls="hand: right" 
-                  laser-controls="hand: right" 
-                  raycaster="objects: .interactable; far: 50; showLine: true" 
-                  line="color: brightgreen; opacity: 0.8">
-          
-          <a-entity rotation="-45 0 0" position="0 0 0.05">
+        <a-entity laser-controls="hand: right" raycaster="objects: .interactable; far: 50; showLine: true" line="color: red">
+          <a-entity rotation="-45 0 0">
              <a-box width="0.03" height="0.12" depth="0.04" color="#111" position="0 -0.05 0"></a-box>
              <a-box width="0.035" height="0.04" depth="0.2" color="#222" position="0 0.02 -0.05"></a-box>
           </a-entity>
@@ -60,12 +63,24 @@
         <a-entity oculus-touch-controls="hand: left"></a-entity>
       </a-entity>
 
-      <a-sky color="#111"></a-sky>
-      <a-grid color="#222"></a-grid>
+      <a-entity wanderer position="2 0 -5">
+        <a-box color="orange" width="0.6" height="1" depth="0.6">
+            <a-entity text="value: meh; align: center; color: black; width: 4" position="0 1.2 0" geometry="primitive: plane; width: 0.6; height: 0.3"></a-entity>
+        </a-box>
+      </a-entity>
 
-      <a-box class="interactable" destructible position="-4 2 -8" scale="2 4 2" color="#778899"></a-box>
-      <a-box class="interactable" destructible position="4 1.5 -6" scale="2 3 2" color="#444"></a-box>
-      <a-box class="interactable" destructible position="0 1 -10" scale="1 2 1" color="#990000"></a-box>
+      <a-entity wanderer position="-2 0 -5">
+        <a-box color="cyan" width="0.6" height="1" depth="0.6">
+            <a-entity text="value: meh; align: center; color: black; width: 4" position="0 1.2 0" geometry="primitive: plane; width: 0.6; height: 0.3"></a-entity>
+        </a-box>
+      </a-entity>
+
+      <a-sky color="#222"></a-sky>
+      <a-grid color="#444"></a-grid>
+
+      <a-box class="interactable" destructible position="-5 2.5 -10" scale="3 5 3" color="#555"></a-box>
+      <a-box class="interactable" destructible position="5 2 -12" scale="4 4 4" color="#666"></a-box>
+      <a-box class="interactable" destructible position="0 3 -15" scale="2 6 2" color="#444"></a-box>
 
     </a-scene>
   </body>
