@@ -5,39 +5,63 @@
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
     
     <script>
-      // 1. The Wanderer Logic (For the Meh guys)
-      AFRAME.registerComponent('wanderer', {
+      // LOGIC: The Meh Guys
+      AFRAME.registerComponent('meh-logic', {
         init: function () {
           this.targetPos = new THREE.Vector3();
+          this.state = 'wandering'; // wandering, stalking, or greeting
           this.createNewTarget();
+          this.text = this.el.querySelector('.speech-bubble');
+
+          // When you look at them with the laser/cursor
+          this.el.addEventListener('mouseenter', () => {
+            if (this.state === 'wandering') {
+              this.state = 'stalking';
+              this.text.setAttribute('value', '...'); 
+            }
+          });
         },
         createNewTarget: function() {
-          // Picks a random spot within 10 meters
           this.targetPos.set(Math.random()*20-10, 0, Math.random()*20-10);
         },
         tick: function (time, timeDelta) {
           let currentPos = this.el.getAttribute('position');
-          if (this.targetPos.distanceTo(currentPos) < 0.5) {
-            this.createNewTarget();
-          } else {
-            this.el.object3D.lookAt(this.targetPos);
-            this.el.object3D.translateZ(0.03); // Speed of the little guys
+          let playerPos = document.querySelector('#camera').object3D.getWorldPosition(new THREE.Vector3());
+
+          if (this.state === 'stalking') {
+            // Walk toward player
+            this.el.object3D.lookAt(playerPos.x, 0, playerPos.z);
+            this.el.object3D.translateZ(0.05);
+            if (currentPos.distanceTo(playerPos) < 2) {
+              this.state = 'greeting';
+              this.text.setAttribute('value', 'hi');
+              setTimeout(() => {
+                this.text.setAttribute('value', 'meh');
+                this.state = 'wandering';
+                this.createNewTarget();
+              }, 2000);
+            }
+          } else if (this.state === 'wandering') {
+            if (this.targetPos.distanceTo(currentPos) < 0.5) {
+              this.createNewTarget();
+            } else {
+              this.el.object3D.lookAt(this.targetPos);
+              this.el.object3D.translateZ(0.03);
+            }
           }
         }
       });
 
-      // 2. Destructible Logic with Respawn
+      // LOGIC: Fixed Respawn for Buildings
       AFRAME.registerComponent('destructible', {
         init: function () {
-          // Save the original position so we can bring it back
-          this.originalPos = this.el.getAttribute('position');
-          
+          this.originalPos = Object.assign({}, this.el.getAttribute('position'));
           this.el.addEventListener('click', () => {
-            // Hide the building
+            // Move it away and hide it
+            this.el.setAttribute('position', {x: 0, y: -50, z: 0});
             this.el.setAttribute('visible', 'false');
-            this.el.setAttribute('position', {x: 0, y: -20, z: 0}); // Move it underground so you don't hit it
             
-            // Bring it back after 4 seconds
+            // Wait 4 seconds then bring it back
             setTimeout(() => {
               this.el.setAttribute('position', this.originalPos);
               this.el.setAttribute('visible', 'true');
@@ -51,7 +75,7 @@
     <a-scene cursor="rayOrigin: mouse" raycaster="objects: .interactable">
       
       <a-entity id="rig" movement-controls="speed: 0.2">
-        <a-entity camera position="0 1.6 0" look-controls></a-entity>
+        <a-entity id="camera" camera position="0 1.6 0" look-controls></a-entity>
         
         <a-entity laser-controls="hand: right" raycaster="objects: .interactable; far: 50; showLine: true" line="color: red">
           <a-entity rotation="-45 0 0">
@@ -59,28 +83,33 @@
              <a-box width="0.035" height="0.04" depth="0.2" color="#222" position="0 0.02 -0.05"></a-box>
           </a-entity>
         </a-entity>
-
         <a-entity oculus-touch-controls="hand: left"></a-entity>
       </a-entity>
 
-      <a-entity wanderer position="2 0 -5">
+      <a-mixin id="face" geometry="primitive: sphere; radius: 0.05" material="color: black"></a-mixin>
+
+      <a-entity class="interactable" meh-logic position="3 0 -5">
         <a-box color="orange" width="0.6" height="1" depth="0.6">
-            <a-entity text="value: meh; align: center; color: black; width: 4" position="0 1.2 0" geometry="primitive: plane; width: 0.6; height: 0.3"></a-entity>
+            <a-text class="speech-bubble" value="meh" align="center" color="black" width="4" position="0 1.2 0" geometry="primitive: plane; width: 0.6; height: 0.3"></a-text>
+            <a-entity mixin="face" position="0.15 0.3 0.31"></a-entity>
+            <a-entity mixin="face" position="-0.15 0.3 0.31"></a-entity>
+            <a-box color="black" width="0.2" height="0.02" depth="0.01" position="0 0.1 0.31"></a-box>
         </a-box>
       </a-entity>
 
-      <a-entity wanderer position="-2 0 -5">
+      <a-entity class="interactable" meh-logic position="-3 0 -5">
         <a-box color="cyan" width="0.6" height="1" depth="0.6">
-            <a-entity text="value: meh; align: center; color: black; width: 4" position="0 1.2 0" geometry="primitive: plane; width: 0.6; height: 0.3"></a-entity>
+            <a-text class="speech-bubble" value="meh" align="center" color="black" width="4" position="0 1.2 0" geometry="primitive: plane; width: 0.6; height: 0.3"></a-text>
+            <a-entity mixin="face" position="0.15 0.3 0.31"></a-entity>
+            <a-entity mixin="face" position="-0.15 0.3 0.31"></a-entity>
+            <a-box color="black" width="0.2" height="0.02" depth="0.01" position="0 0.1 0.31"></a-box>
         </a-box>
       </a-entity>
 
       <a-sky color="#222"></a-sky>
       <a-grid color="#444"></a-grid>
-
       <a-box class="interactable" destructible position="-5 2.5 -10" scale="3 5 3" color="#555"></a-box>
       <a-box class="interactable" destructible position="5 2 -12" scale="4 4 4" color="#666"></a-box>
-      <a-box class="interactable" destructible position="0 3 -15" scale="2 6 2" color="#444"></a-box>
 
     </a-scene>
   </body>
