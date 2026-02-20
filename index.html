@@ -5,67 +5,89 @@
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
     
     <script>
-      // LOGIC: The Meh Guys
-      AFRAME.registerComponent('meh-logic', {
+      // 1. BULLET & RELOAD SYSTEM
+      let ammo = 10;
+      AFRAME.registerComponent('shooter', {
         init: function () {
-          this.targetPos = new THREE.Vector3();
-          this.state = 'wandering'; // wandering, stalking, or greeting
-          this.createNewTarget();
-          this.text = this.el.querySelector('.speech-bubble');
-
-          // When you look at them with the laser/cursor
-          this.el.addEventListener('mouseenter', () => {
-            if (this.state === 'wandering') {
-              this.state = 'stalking';
-              this.text.setAttribute('value', '...'); 
+          // Listen for Trigger (Lower button/Trigger)
+          this.el.addEventListener('triggerdown', () => {
+            if (ammo > 0) {
+              this.shoot();
+              ammo--;
+            } else {
+              console.log("Out of ammo! Press Y to reload");
             }
           });
+
+          // Listen for Y Button (Top button on Left Controller)
+          this.el.addEventListener('ybuttondown', () => {
+            ammo = 10;
+            console.log("Reloaded!");
+          });
         },
-        createNewTarget: function() {
-          this.targetPos.set(Math.random()*20-10, 0, Math.random()*20-10);
+        shoot: function() {
+          // Create a bullet
+          let bullet = document.createElement('a-sphere');
+          bullet.setAttribute('radius', '0.05');
+          bullet.setAttribute('color', 'red');
+          
+          // Position bullet at the gun muzzle
+          let worldPos = new THREE.Vector3();
+          this.el.object3D.getWorldPosition(worldPos);
+          bullet.setAttribute('position', worldPos);
+          
+          // Shoot it forward
+          let direction = new THREE.Vector3(0, 0, -1);
+          direction.applyQuaternion(this.el.object3D.quaternion);
+          bullet.setAttribute('velocity', direction.multiplyScalar(20));
+          
+          // Movement animation for the bullet
+          bullet.setAttribute('animation', `property: position; to: ${worldPos.x + direction.x * 20} ${worldPos.y + direction.y * 20} ${worldPos.z + direction.z * 20}; dur: 1000; easing: linear`);
+          
+          this.el.sceneEl.appendChild(bullet);
+          setTimeout(() => bullet.remove(), 1000);
+        }
+      });
+
+      // 2. MEH GUY LOGIC (Fixed Stalking)
+      AFRAME.registerComponent('meh-logic', {
+        init: function () {
+          this.state = 'wandering';
+          this.targetPos = new THREE.Vector3(Math.random()*10-5, 0, Math.random()*-10);
+          this.text = this.el.querySelector('.speech');
+          
+          this.el.addEventListener('mouseenter', () => {
+             this.state = 'stalking';
+             this.text.setAttribute('value', '...');
+          });
         },
-        tick: function (time, timeDelta) {
+        tick: function () {
           let currentPos = this.el.getAttribute('position');
-          let playerPos = document.querySelector('#camera').object3D.getWorldPosition(new THREE.Vector3());
+          let player = document.querySelector('#camera').object3D.getWorldPosition(new THREE.Vector3());
 
           if (this.state === 'stalking') {
-            // Walk toward player
-            this.el.object3D.lookAt(playerPos.x, 0, playerPos.z);
-            this.el.object3D.translateZ(0.05);
-            if (currentPos.distanceTo(playerPos) < 2) {
+            this.el.object3D.lookAt(player.x, 0, player.z);
+            this.el.object3D.translateZ(0.06);
+            if (currentPos.distanceTo(player) < 2) {
               this.state = 'greeting';
               this.text.setAttribute('value', 'hi');
-              setTimeout(() => {
-                this.text.setAttribute('value', 'meh');
-                this.state = 'wandering';
-                this.createNewTarget();
-              }, 2000);
+              setTimeout(() => { this.state = 'wandering'; this.text.setAttribute('value', 'meh'); }, 2000);
             }
           } else if (this.state === 'wandering') {
-            if (this.targetPos.distanceTo(currentPos) < 0.5) {
-              this.createNewTarget();
-            } else {
-              this.el.object3D.lookAt(this.targetPos);
-              this.el.object3D.translateZ(0.03);
-            }
+            this.el.object3D.lookAt(this.targetPos.x, 0, this.targetPos.z);
+            this.el.object3D.translateZ(0.02);
+            if (currentPos.distanceTo(this.targetPos) < 1) this.targetPos.set(Math.random()*20-10, 0, Math.random()*-10);
           }
         }
       });
 
-      // LOGIC: Fixed Respawn for Buildings
+      // 3. BUILDING RESPAWN
       AFRAME.registerComponent('destructible', {
         init: function () {
           this.originalPos = Object.assign({}, this.el.getAttribute('position'));
           this.el.addEventListener('click', () => {
-            // Move it away and hide it
             this.el.setAttribute('position', {x: 0, y: -50, z: 0});
-            this.el.setAttribute('visible', 'false');
-            
-            // Wait 4 seconds then bring it back
-            setTimeout(() => {
-              this.el.setAttribute('position', this.originalPos);
-              this.el.setAttribute('visible', 'true');
-            }, 4000);
+            setTimeout(() => { this.el.setAttribute('position', this.originalPos); }, 4000);
           });
         }
       });
@@ -74,43 +96,41 @@
   <body>
     <a-scene cursor="rayOrigin: mouse" raycaster="objects: .interactable">
       
+      <a-assets>
+        <a-mixin id="win" geometry="primitive: plane; width: 0.4; height: 0.4" material="color: #88CCFF; emissive: #224466"></a-mixin>
+      </a-assets>
+
       <a-entity id="rig" movement-controls="speed: 0.2">
         <a-entity id="camera" camera position="0 1.6 0" look-controls></a-entity>
         
-        <a-entity laser-controls="hand: right" raycaster="objects: .interactable; far: 50; showLine: true" line="color: red">
-          <a-entity rotation="-45 0 0">
+        <a-entity oculus-touch-controls="hand: left" shooter laser-controls="hand: left" raycaster="objects: .interactable; showLine: true" line="color: red">
+           <a-entity rotation="-45 0 0">
              <a-box width="0.03" height="0.12" depth="0.04" color="#111" position="0 -0.05 0"></a-box>
              <a-box width="0.035" height="0.04" depth="0.2" color="#222" position="0 0.02 -0.05"></a-box>
-          </a-entity>
+           </a-entity>
         </a-entity>
-        <a-entity oculus-touch-controls="hand: left"></a-entity>
+
+        <a-entity oculus-touch-controls="hand: right"></a-entity>
       </a-entity>
 
-      <a-mixin id="face" geometry="primitive: sphere; radius: 0.05" material="color: black"></a-mixin>
-
-      <a-entity class="interactable" meh-logic position="3 0 -5">
+      <a-entity class="interactable" meh-logic position="2 0 -4">
         <a-box color="orange" width="0.6" height="1" depth="0.6">
-            <a-text class="speech-bubble" value="meh" align="center" color="black" width="4" position="0 1.2 0" geometry="primitive: plane; width: 0.6; height: 0.3"></a-text>
-            <a-entity mixin="face" position="0.15 0.3 0.31"></a-entity>
-            <a-entity mixin="face" position="-0.15 0.3 0.31"></a-entity>
-            <a-box color="black" width="0.2" height="0.02" depth="0.01" position="0 0.1 0.31"></a-box>
+          <a-text class="speech" value="meh" align="center" position="0 1.2 0" geometry="primitive: plane; width: 0.6; height: 0.3"></a-text>
+          <a-sphere radius="0.05" color="black" position="0.15 0.3 0.31"></a-sphere>
+          <a-sphere radius="0.05" color="black" position="-0.15 0.3 0.31"></a-sphere>
         </a-box>
       </a-entity>
 
-      <a-entity class="interactable" meh-logic position="-3 0 -5">
-        <a-box color="cyan" width="0.6" height="1" depth="0.6">
-            <a-text class="speech-bubble" value="meh" align="center" color="black" width="4" position="0 1.2 0" geometry="primitive: plane; width: 0.6; height: 0.3"></a-text>
-            <a-entity mixin="face" position="0.15 0.3 0.31"></a-entity>
-            <a-entity mixin="face" position="-0.15 0.3 0.31"></a-entity>
-            <a-box color="black" width="0.2" height="0.02" depth="0.01" position="0 0.1 0.31"></a-box>
+      <a-entity class="interactable" destructible position="-6 4 -10">
+        <a-box width="4" height="8" depth="4" color="#444">
+          <a-entity mixin="win" position="-1 2 2.01"></a-entity> <a-entity mixin="win" position="1 2 2.01"></a-entity>
+          <a-entity mixin="win" position="-1 0 2.01"></a-entity> <a-entity mixin="win" position="1 0 2.01"></a-entity>
+          <a-entity mixin="win" position="-1 -2 2.01"></a-entity> <a-entity mixin="win" position="1 -2 2.01"></a-entity>
         </a-box>
       </a-entity>
 
-      <a-sky color="#222"></a-sky>
-      <a-grid color="#444"></a-grid>
-      <a-box class="interactable" destructible position="-5 2.5 -10" scale="3 5 3" color="#555"></a-box>
-      <a-box class="interactable" destructible position="5 2 -12" scale="4 4 4" color="#666"></a-box>
-
+      <a-sky color="#111"></a-sky>
+      <a-grid color="#333"></a-grid>
     </a-scene>
   </body>
 </html>
