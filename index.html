@@ -5,73 +5,67 @@
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
     
     <script>
-      // 1. Logic for the "Meh" Guy to wander
-      AFRAME.registerComponent('wanderer', {
-        init: function () {
-          this.targetPos = new THREE.Vector3();
-          this.createNewTarget();
-        },
-        createNewTarget: function() {
-          this.targetPos.set(Math.random()*10-5, 0, Math.random()*-10-2);
-        },
-        tick: function (time, timeDelta) {
-          let currentPos = this.el.getAttribute('position');
-          // Move slowly toward target
-          if (this.targetPos.distanceTo(currentPos) < 0.1) {
-            this.createNewTarget();
-          } else {
-            // Simple lerp math to move
-            this.el.object3D.lookAt(this.targetPos);
-            this.el.object3D.translateZ(0.02);
-          }
-        }
-      });
-
-      // 2. Destructible Logic (same as before)
+      // The "Explosion" logic
       AFRAME.registerComponent('destructible', {
         init: function () {
-          this.el.addEventListener('click', () => {
+          this.el.addEventListener('click', (evt) => {
+            console.log("Hit detected!"); // This helps you debug on your Mac
+            
+            // Create a temporary "shatter" effect
+            for (let i = 0; i < 3; i++) {
+              let frag = document.createElement('a-box');
+              frag.setAttribute('scale', '0.2 0.2 0.2');
+              frag.setAttribute('color', 'red');
+              frag.setAttribute('position', this.el.getAttribute('position'));
+              frag.setAttribute('animation', `property: position; to: ${Math.random()*2-1} 4 ${Math.random()*-2}; dur: 500`);
+              this.el.sceneEl.appendChild(frag);
+              setTimeout(() => frag.remove(), 500);
+            }
+
+            // Hide the building
             this.el.setAttribute('visible', 'false');
-            this.el.setAttribute('class', 'not-target');
+            // Move it far away so the laser doesn't hit an invisible wall
+            this.el.setAttribute('position', {x: 0, y: -100, z: 0}); 
+
+            // Respawn after 5 seconds
             setTimeout(() => {
               this.el.setAttribute('visible', 'true');
-              this.el.setAttribute('class', 'interactable');
+              this.el.setAttribute('position', this.el.originalPosition);
             }, 5000);
           });
+          
+          // Save the original position for respawning
+          this.el.originalPosition = this.el.getAttribute('position');
         }
       });
     </script>
   </head>
   <body>
-    <a-scene renderer="antialias: true" cursor="rayOrigin: mouse">
+    <a-scene cursor="rayOrigin: mouse" raycaster="objects: .interactable">
       
-      <a-assets>
-        <a-mixin id="building" geometry="primitive: box" material="color: #555" destructible class="interactable"></a-mixin>
-      </a-assets>
-
       <a-entity id="rig" movement-controls="speed: 0.15">
         <a-entity camera position="0 1.6 0" look-controls></a-entity>
         
-        <a-entity oculus-touch-controls="hand: right" raycaster="objects: .interactable; showLine: true; far: 20" line="color: red; opacity: 0.5">
+        <a-entity oculus-touch-controls="hand: right" 
+                  laser-controls="hand: right" 
+                  raycaster="objects: .interactable; far: 50; showLine: true" 
+                  line="color: brightgreen; opacity: 0.8">
+          
           <a-entity rotation="-45 0 0" position="0 0 0.05">
-             <a-box width="0.03" height="0.12" depth="0.04" color="#111" position="0 -0.05 0"></a-box> <a-box width="0.035" height="0.04" depth="0.2" color="#222" position="0 0.02 -0.05"></a-box> </a-entity>
+             <a-box width="0.03" height="0.12" depth="0.04" color="#111" position="0 -0.05 0"></a-box>
+             <a-box width="0.035" height="0.04" depth="0.2" color="#222" position="0 0.02 -0.05"></a-box>
+          </a-entity>
         </a-entity>
 
         <a-entity oculus-touch-controls="hand: left"></a-entity>
       </a-entity>
 
-      <a-entity wanderer position="2 0 -4">
-        <a-box color="orange" width="0.5" height="1" depth="0.5">
-            <a-entity text="value: meh; align: center; color: black; width: 4" position="0 1.2 0" geometry="primitive: plane; width: 0.8; height: 0.4" material="color: white"></a-entity>
-        </a-box>
-        <a-sphere color="white" radius="0.1" position="0.15 0.3 0.26"></a-sphere>
-        <a-sphere color="white" radius="0.1" position="-0.15 0.3 0.26"></a-sphere>
-      </a-entity>
+      <a-sky color="#111"></a-sky>
+      <a-grid color="#222"></a-grid>
 
-      <a-sky color="#87CEEB"></a-sky>
-      <a-grid color="#444"></a-grid>
-      <a-entity mixin="building" position="-4 2 -8" scale="2 4 2" material="color: #778899"></a-entity>
-      <a-entity mixin="building" position="5 1.5 -6" scale="2 3 2" material="color: #444"></a-entity>
+      <a-box class="interactable" destructible position="-4 2 -8" scale="2 4 2" color="#778899"></a-box>
+      <a-box class="interactable" destructible position="4 1.5 -6" scale="2 3 2" color="#444"></a-box>
+      <a-box class="interactable" destructible position="0 1 -10" scale="1 2 1" color="#990000"></a-box>
 
     </a-scene>
   </body>
